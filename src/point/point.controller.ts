@@ -1,8 +1,15 @@
-import { Body, Controller, Get, Param, Patch, ValidationPipe } from '@nestjs/common';
-import { PointHistory, TransactionType, UserPoint } from './point.model';
-import { UserPointTable } from 'src/database/userpoint.table';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  ValidationPipe,
+} from '@nestjs/common';
 import { PointHistoryTable } from 'src/database/pointhistory.table';
+import { UserPointTable } from 'src/database/userpoint.table';
 import { PointBody as PointDto } from './point.dto';
+import { PointHistory, UserPoint } from './point.model';
 
 @Controller('/point')
 export class PointController {
@@ -33,7 +40,10 @@ export class PointController {
    * TODO - 특정 유저의 포인트를 충전하는 기능을 작성해주세요.
    */
   @Patch(':id/charge')
-  async charge(@Param('id') id, @Body(ValidationPipe) pointDto: PointDto): Promise<UserPoint> {
+  async charge(
+    @Param('id') id,
+    @Body(ValidationPipe) pointDto: PointDto,
+  ): Promise<UserPoint> {
     const userId = Number.parseInt(id);
     const amount = pointDto.amount;
     return { id: userId, point: amount, updateMillis: Date.now() };
@@ -43,7 +53,10 @@ export class PointController {
    * TODO - 특정 유저의 포인트를 사용하는 기능을 작성해주세요.
    */
   @Patch(':id/use')
-  async use(@Param('id') id, @Body(ValidationPipe) pointDto: PointDto): Promise<UserPoint> {
+  async use(
+    @Param('id') id,
+    @Body(ValidationPipe) pointDto: PointDto,
+  ): Promise<UserPoint> {
     const userId = Number.parseInt(id);
     const amount = pointDto.amount;
     return { id: userId, point: amount, updateMillis: Date.now() };
