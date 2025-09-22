@@ -33,6 +33,7 @@ export class PointController {
   @Get(':id/histories')
   async history(@Param('id') id): Promise<PointHistory[]> {
     const userId = Number.parseInt(id);
+    console.log(userId);
     return [];
   }
 
