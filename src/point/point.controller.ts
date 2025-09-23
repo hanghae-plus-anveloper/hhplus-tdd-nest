@@ -6,6 +6,7 @@ import {
   Patch,
   ValidationPipe,
 } from '@nestjs/common';
+import { enqueue } from 'src/common/concurrency/queue';
 import { PointHistoryTable } from 'src/database/pointhistory.table';
 import { UserPointTable } from 'src/database/userpoint.table';
 import { PointBody as PointDto } from './point.dto';
@@ -57,29 +58,33 @@ export class PointController {
     @Body(ValidationPipe) pointDto: PointDto,
   ): Promise<UserPoint> {
     const userId = Number.parseInt(id);
-    const amount = pointDto.amount;
 
-    if (amount <= 0) {
-      throw new Error('충전 금액은 0보다 커야 합니다.');
-    }
+    // enqueue를 사용하여 userId별로 작업이 순차적으로 처리
+    return enqueue(userId, async () => {
+      const amount = pointDto.amount;
 
-    const current = await this.userDb.selectById(userId);
-    if (!current) {
-      throw new Error('존재하지 않는 사용자입니다.');
-    }
+      if (amount <= 0) {
+        throw new Error('충전 금액은 0보다 커야 합니다.');
+      }
 
-    const updated = await this.userDb.insertOrUpdate(
-      userId,
-      current.point + amount,
-    );
-    await this.historyDb.insert(
-      userId,
-      amount,
-      TransactionType.CHARGE,
-      updated.updateMillis,
-    );
+      const current = await this.userDb.selectById(userId);
+      if (!current) {
+        throw new Error('존재하지 않는 사용자입니다.');
+      }
 
-    return updated;
+      const updated = await this.userDb.insertOrUpdate(
+        userId,
+        current.point + amount,
+      );
+      await this.historyDb.insert(
+        userId,
+        amount,
+        TransactionType.CHARGE,
+        updated.updateMillis,
+      );
+
+      return updated;
+    });
   }
 
   /**
@@ -91,28 +96,32 @@ export class PointController {
     @Body(ValidationPipe) pointDto: PointDto,
   ): Promise<UserPoint> {
     const userId = Number.parseInt(id);
-    const amount = pointDto.amount;
 
-    const current = await this.userDb.selectById(userId);
-    if (!current) {
-      throw new Error('존재하지 않는 사용자입니다.');
-    }
+    // enqueue를 사용하여 userId별로 작업이 순차적으로 처리
+    return enqueue(userId, async () => {
+      const amount = pointDto.amount;
 
-    if (current.point < amount) {
-      throw new Error('포인트가 부족합니다.');
-    }
+      const current = await this.userDb.selectById(userId);
+      if (!current) {
+        throw new Error('존재하지 않는 사용자입니다.');
+      }
 
-    const updated = await this.userDb.insertOrUpdate(
-      userId,
-      current.point - amount,
-    );
-    await this.historyDb.insert(
-      userId,
-      amount,
-      TransactionType.USE,
-      updated.updateMillis,
-    );
+      if (current.point < amount) {
+        throw new Error('포인트가 부족합니다.');
+      }
 
-    return updated;
+      const updated = await this.userDb.insertOrUpdate(
+        userId,
+        current.point - amount,
+      );
+      await this.historyDb.insert(
+        userId,
+        amount,
+        TransactionType.USE,
+        updated.updateMillis,
+      );
+
+      return updated;
+    });
   }
 }
