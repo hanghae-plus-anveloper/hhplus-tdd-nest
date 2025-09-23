@@ -9,7 +9,7 @@ import {
 import { PointHistoryTable } from 'src/database/pointhistory.table';
 import { UserPointTable } from 'src/database/userpoint.table';
 import { PointBody as PointDto } from './point.dto';
-import { PointHistory, UserPoint } from './point.model';
+import { PointHistory, TransactionType, UserPoint } from './point.model';
 
 @Controller('/point')
 export class PointController {
@@ -24,7 +24,13 @@ export class PointController {
   @Get(':id')
   async point(@Param('id') id): Promise<UserPoint> {
     const userId = Number.parseInt(id);
-    return { id: userId, point: 0, updateMillis: Date.now() };
+
+    const userPoint = await this.userDb.selectById(userId);
+    if (!userPoint) {
+      throw new Error('존재하지 않는 사용자입니다.');
+    }
+
+    return userPoint;
   }
 
   /**
@@ -33,8 +39,13 @@ export class PointController {
   @Get(':id/histories')
   async history(@Param('id') id): Promise<PointHistory[]> {
     const userId = Number.parseInt(id);
-    console.log(userId);
-    return [];
+
+    const userPoint = await this.userDb.selectById(userId);
+    if (!userPoint) {
+      throw new Error('존재하지 않는 사용자입니다.');
+    }
+
+    return this.historyDb.selectAllByUserId(userId);
   }
 
   /**
@@ -47,7 +58,28 @@ export class PointController {
   ): Promise<UserPoint> {
     const userId = Number.parseInt(id);
     const amount = pointDto.amount;
-    return { id: userId, point: amount, updateMillis: Date.now() };
+
+    if (amount <= 0) {
+      throw new Error('충전 금액은 0보다 커야 합니다.');
+    }
+
+    const current = await this.userDb.selectById(userId);
+    if (!current) {
+      throw new Error('존재하지 않는 사용자입니다.');
+    }
+
+    const updated = await this.userDb.insertOrUpdate(
+      userId,
+      current.point + amount,
+    );
+    await this.historyDb.insert(
+      userId,
+      amount,
+      TransactionType.CHARGE,
+      updated.updateMillis,
+    );
+
+    return updated;
   }
 
   /**
@@ -60,6 +92,27 @@ export class PointController {
   ): Promise<UserPoint> {
     const userId = Number.parseInt(id);
     const amount = pointDto.amount;
-    return { id: userId, point: amount, updateMillis: Date.now() };
+
+    const current = await this.userDb.selectById(userId);
+    if (!current) {
+      throw new Error('존재하지 않는 사용자입니다.');
+    }
+
+    if (current.point < amount) {
+      throw new Error('포인트가 부족합니다.');
+    }
+
+    const updated = await this.userDb.insertOrUpdate(
+      userId,
+      current.point - amount,
+    );
+    await this.historyDb.insert(
+      userId,
+      amount,
+      TransactionType.USE,
+      updated.updateMillis,
+    );
+
+    return updated;
   }
 }
